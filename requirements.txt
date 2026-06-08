@@ -5,6 +5,7 @@ langchain-groq
 langchain-text-splitters
 chromadb
 sentence-transformers
+PyMuPDF
 pymupdf4llm
 Pillow
 numpy
