@@ -1,8 +1,10 @@
-   streamlit
-   langchain
-   langchain-community
-   langchain-groq
-   chromadb
-   sentence-transformers
-   pypdf
-   numpys
+streamlit
+langchain
+langchain-community
+langchain-groq
+langchain-text-splitters
+chromadb
+sentence-transformers
+pymupdf4llm
+Pillow
+numpy
