@@ -144,6 +144,8 @@ if st.session_state.retriever:
                     label = (
                         f"🖼️ Figure description (page {page})"
                         if ctype == "image_caption"
+                        else f"📊 Table (page {page})"
+                        if ctype == "table"
                         else f"📄 Text chunk (page {page})"
                     )
                     st.caption(f"**Source {i}:** {label}")

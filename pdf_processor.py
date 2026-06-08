@@ -13,8 +13,8 @@ import base64
 import io
 import logging
 
-import pymupdf  # PDF image extraction
-import pymupdf4llm  # PDF-to-Markdown conversion
+import pymupdf  # type: ignore # PDF image extraction
+import pymupdf4llm  # type: ignore # PDF-to-Markdown conversion
 from langchain_core.documents import Document
 from langchain_core.messages import HumanMessage
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -50,12 +50,35 @@ IMAGE_CAPTION_PROMPT = (
 # ---------------------------------------------------------------------------
 # Text Extraction
 # ---------------------------------------------------------------------------
+import re
+
+def _split_tables_and_text(page_text: str) -> tuple[list[str], str]:
+    """
+    Separate Markdown tables from surrounding prose.
+
+    Returns:
+        (tables, remaining_text) where *tables* is a list of complete
+        Markdown table strings and *remaining_text* is the prose with
+        tables removed.
+    """
+    # Match contiguous lines that look like Markdown table rows
+    table_pattern = re.compile(
+        r"((?:^\|.*\|[ \t]*\n?)+)",
+        re.MULTILINE,
+    )
+    tables = [m.group(0).strip() for m in table_pattern.finditer(page_text)]
+    # Only keep blocks that contain the separator row |---|
+    tables = [t for t in tables if "|---" in t]
+    remaining = table_pattern.sub("\n", page_text)
+    return tables, remaining
+
+
 def extract_text_chunks(pdf_path: str) -> list[Document]:
     """
     Extract structured Markdown text from a PDF and split into chunks.
 
-    Uses pymupdf4llm for Markdown conversion (preserves headings, tables,
-    lists) and LangChain's RecursiveCharacterTextSplitter for chunking.
+    Tables are extracted as whole documents to avoid splitting them across
+    chunks.  Remaining prose is chunked with RecursiveCharacterTextSplitter.
 
     Returns:
         List of LangChain Document objects with page metadata.
@@ -70,6 +93,8 @@ def extract_text_chunks(pdf_path: str) -> list[Document]:
     )
 
     documents = []
+    table_index = 0
+
     for chunk in page_chunks:
         page_text = chunk.get("text", "")
         page_meta = chunk.get("metadata", {})
@@ -78,19 +103,37 @@ def extract_text_chunks(pdf_path: str) -> list[Document]:
         if not page_text.strip():
             continue
 
-        splits = splitter.split_text(page_text)
-        for i, split in enumerate(splits):
+        # --- Extract tables as whole documents ---
+        tables, remaining_text = _split_tables_and_text(page_text)
+        for table in tables:
+            table_index += 1
             documents.append(
                 Document(
-                    page_content=split,
+                    page_content=table,
                     metadata={
                         "source": pdf_path,
                         "page": page_num,
-                        "content_type": "text",
-                        "chunk_index": i,
+                        "content_type": "table",
+                        "table_index": table_index,
                     },
                 )
             )
+
+        # --- Chunk the remaining prose text ---
+        if remaining_text.strip():
+            splits = splitter.split_text(remaining_text)
+            for i, split in enumerate(splits):
+                documents.append(
+                    Document(
+                        page_content=split,
+                        metadata={
+                            "source": pdf_path,
+                            "page": page_num,
+                            "content_type": "text",
+                            "chunk_index": i,
+                        },
+                    )
+                )
 
     logger.info("Extracted %d text chunks from %s", len(documents), pdf_path)
     return documents
