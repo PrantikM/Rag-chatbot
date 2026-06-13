@@ -39,6 +39,10 @@ llm = ChatGroq(
 # ---------------------------------------------------------------------------
 uploaded_file = st.file_uploader("📄 Upload a PDF", type=["pdf"])
 
+if "session_id" not in st.session_state:
+    import uuid
+    st.session_state.session_id = str(uuid.uuid4())
+
 if uploaded_file:
     # Only re-process if a new file is uploaded
     current_name = uploaded_file.name
@@ -46,7 +50,7 @@ if uploaded_file:
         import tempfile
 
         tmp_dir = tempfile.gettempdir()
-        pdf_path = os.path.join(tmp_dir, "temp.pdf")
+        pdf_path = os.path.join(tmp_dir, f"temp_{st.session_state.session_id}.pdf")
 
         with open(pdf_path, "wb") as f:
             f.write(uploaded_file.read())
@@ -78,11 +82,14 @@ if uploaded_file:
             f"{text_count} text chunks and {image_count} figure descriptions extracted."
         )
 
-        # -- Build vector store (in-memory, no disk persistence needed) --
+        # -- Build vector store (in-memory, per-session collection) --
         embeddings = HuggingFaceEmbeddings(
             model_name="sentence-transformers/all-MiniLM-L6-v2"
         )
-        vectordb = Chroma.from_documents(docs, embedding=embeddings)
+        collection_name = f"session_{st.session_state.session_id.replace('-', '_')}"
+        vectordb = Chroma.from_documents(
+            docs, embedding=embeddings, collection_name=collection_name
+        )
         st.session_state.retriever = vectordb.as_retriever(search_kwargs={"k": 5})
         st.session_state.documents = docs
         st.session_state.uploaded_file_name = current_name
