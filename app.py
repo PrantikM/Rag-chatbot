@@ -43,7 +43,13 @@ if uploaded_file:
     # Only re-process if a new file is uploaded
     current_name = uploaded_file.name
     if st.session_state.get("uploaded_file_name") != current_name:
-        pdf_path = "temp.pdf"
+        import tempfile
+        import shutil
+
+        tmp_dir = tempfile.gettempdir()
+        pdf_path = os.path.join(tmp_dir, "temp.pdf")
+        db_path = os.path.join(tmp_dir, "chroma_db")
+
         with open(pdf_path, "wb") as f:
             f.write(uploaded_file.read())
 
@@ -76,15 +82,14 @@ if uploaded_file:
 
         # -- Build vector store --
         # Clear old vector store so only the new PDF is indexed
-        import shutil
-        if os.path.exists("db"):
-            shutil.rmtree("db")
+        if os.path.exists(db_path):
+            shutil.rmtree(db_path)
 
         embeddings = HuggingFaceEmbeddings(
             model_name="sentence-transformers/all-MiniLM-L6-v2"
         )
         vectordb = Chroma.from_documents(
-            docs, embedding=embeddings, persist_directory="db"
+            docs, embedding=embeddings, persist_directory=db_path
         )
         st.session_state.retriever = vectordb.as_retriever(search_kwargs={"k": 5})
         st.session_state.documents = docs
