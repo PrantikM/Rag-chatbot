@@ -44,11 +44,9 @@ if uploaded_file:
     current_name = uploaded_file.name
     if st.session_state.get("uploaded_file_name") != current_name:
         import tempfile
-        import shutil
 
         tmp_dir = tempfile.gettempdir()
         pdf_path = os.path.join(tmp_dir, "temp.pdf")
-        db_path = os.path.join(tmp_dir, "chroma_db")
 
         with open(pdf_path, "wb") as f:
             f.write(uploaded_file.read())
@@ -80,17 +78,11 @@ if uploaded_file:
             f"{text_count} text chunks and {image_count} figure descriptions extracted."
         )
 
-        # -- Build vector store --
-        # Clear old vector store so only the new PDF is indexed
-        if os.path.exists(db_path):
-            shutil.rmtree(db_path)
-
+        # -- Build vector store (in-memory, no disk persistence needed) --
         embeddings = HuggingFaceEmbeddings(
             model_name="sentence-transformers/all-MiniLM-L6-v2"
         )
-        vectordb = Chroma.from_documents(
-            docs, embedding=embeddings, persist_directory=db_path
-        )
+        vectordb = Chroma.from_documents(docs, embedding=embeddings)
         st.session_state.retriever = vectordb.as_retriever(search_kwargs={"k": 5})
         st.session_state.documents = docs
         st.session_state.uploaded_file_name = current_name
