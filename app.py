@@ -75,6 +75,11 @@ if uploaded_file:
         )
 
         # -- Build vector store --
+        # Clear old vector store so only the new PDF is indexed
+        import shutil
+        if os.path.exists("db"):
+            shutil.rmtree("db")
+
         embeddings = HuggingFaceEmbeddings(
             model_name="sentence-transformers/all-MiniLM-L6-v2"
         )
